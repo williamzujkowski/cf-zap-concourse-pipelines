@@ -1,0 +1,11 @@
+# Example parameters for a baseline (passive) ZAP scan.
+#
+# Usage:
+#   fly -t <target> set-pipeline -p zap-scan \
+#     -c pipelines/zap-scan.yml \
+#     -l examples/params-baseline.yml
+
+target_url: https://hello-js.apps.127-0-0-1.nip.io
+scan_type: baseline
+fail_on: High
+zap_image_tag: stable

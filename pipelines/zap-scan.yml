@@ -1,0 +1,102 @@
+---
+# Concourse pipeline for running OWASP ZAP security scans against CF applications.
+#
+# Usage:
+#   fly -t <target> set-pipeline -p zap-scan -c pipelines/zap-scan.yml \
+#     -v target_url=https://my-app.example.com \
+#     -v scan_type=baseline \
+#     -v fail_on=High \
+#     -v zap_image_tag=stable
+
+resource_types: []
+
+resources:
+  - name: zap-pipelines
+    type: git
+    icon: github
+    source:
+      uri: https://github.com/williamzujkowski/cf-zap-concourse-pipelines.git
+      branch: main
+
+  - name: daily-timer
+    type: time
+    icon: clock-outline
+    source:
+      interval: 24h
+      start: "02:00"
+      stop: "03:00"
+      location: America/New_York
+
+jobs:
+  - name: baseline-scan
+    plan:
+      - get: zap-pipelines
+        trigger: false
+      - get: daily-timer
+        trigger: false
+      - task: run-zap-baseline
+        file: zap-pipelines/tasks/zap-scan/task.yml
+        params:
+          TARGET_URL: ((target_url))
+          SCAN_TYPE: baseline
+          FAIL_ON: ((fail_on))
+        image: zap-image
+    on_failure:
+      task: notify-failure
+      config:
+        platform: linux
+        image_resource:
+          type: registry-image
+          source:
+            repository: alpine
+            tag: "3.19"
+        run:
+          path: /bin/sh
+          args:
+            - -c
+            - |
+              echo "========================================="
+              echo "ZAP BASELINE SCAN FAILED"
+              echo "Target: ((target_url))"
+              echo "Threshold: ((fail_on))"
+              echo "========================================="
+              echo "Review the scan reports for details."
+
+  - name: full-scan
+    plan:
+      - get: zap-pipelines
+        trigger: false
+      - task: run-zap-full
+        file: zap-pipelines/tasks/zap-scan/task.yml
+        params:
+          TARGET_URL: ((target_url))
+          SCAN_TYPE: full
+          FAIL_ON: ((fail_on))
+        image: zap-image
+    on_failure:
+      task: notify-failure
+      config:
+        platform: linux
+        image_resource:
+          type: registry-image
+          source:
+            repository: alpine
+            tag: "3.19"
+        run:
+          path: /bin/sh
+          args:
+            - -c
+            - |
+              echo "========================================="
+              echo "ZAP FULL SCAN FAILED"
+              echo "Target: ((target_url))"
+              echo "Threshold: ((fail_on))"
+              echo "========================================="
+              echo "Review the scan reports for details."
+
+# Shared image resource used by scan tasks
+zap-image: &zap-image
+  type: registry-image
+  source:
+    repository: ghcr.io/zaproxy/zaproxy
+    tag: ((zap_image_tag))

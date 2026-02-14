@@ -1,0 +1,14 @@
+# Example parameters for a full (active) ZAP scan.
+#
+# WARNING: Full scans send attack payloads to the target application.
+# Only run against applications you own in appropriate environments.
+#
+# Usage:
+#   fly -t <target> set-pipeline -p zap-scan \
+#     -c pipelines/zap-scan.yml \
+#     -l examples/params-full.yml
+
+target_url: https://hello-js.apps.127-0-0-1.nip.io
+scan_type: full
+fail_on: Medium
+zap_image_tag: stable

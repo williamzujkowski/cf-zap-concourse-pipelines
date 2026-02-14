@@ -1,0 +1,17 @@
+# Reports (generated, don't commit)
+reports/
+*.sarif
+
+# ZAP working files
+zap-*.log
+*.session
+*.session.data
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp

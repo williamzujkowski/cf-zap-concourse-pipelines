@@ -1,0 +1,38 @@
+---
+# Concourse task definition for running ZAP scans.
+#
+# This task uses the ZAP Automation Framework to execute security scans
+# against a target URL. The scan type (baseline or full) determines which
+# automation plan is used.
+
+platform: linux
+
+image_resource:
+  type: registry-image
+  source:
+    repository: ghcr.io/zaproxy/zaproxy
+    tag: ((zap_image_tag))
+
+inputs:
+  - name: zap-pipelines
+
+outputs:
+  - name: reports
+
+params:
+  # URL of the application to scan (required).
+  TARGET_URL: ""
+
+  # Scan type: "baseline" (passive only) or "full" (passive + active).
+  SCAN_TYPE: "baseline"
+
+  # Minimum alert risk level that causes failure: High, Medium, Low, Informational.
+  FAIL_ON: "High"
+
+  # Optional path to a custom ZAP context file.
+  CONTEXT_FILE: ""
+
+run:
+  path: /bin/bash
+  args:
+    - zap-pipelines/tasks/zap-scan/run.sh

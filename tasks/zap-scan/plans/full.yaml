@@ -1,0 +1,130 @@
+---
+# ZAP Automation Framework Plan: Full (Active) Scan
+#
+# This plan performs a comprehensive scan including active testing.
+# It spiders the application, runs passive checks, then sends attack
+# payloads to test for vulnerabilities like XSS, SQL injection, etc.
+#
+# WARNING: Active scans send attack payloads. Only run against
+# applications you own and in environments where this is acceptable.
+#
+# Variables substituted at runtime:
+#   ${TARGET_URL} - The URL to scan
+#   ${FAIL_ON}    - Alert risk level that causes failure
+
+env:
+  contexts:
+    - name: "full-scan-context"
+      urls:
+        - "${TARGET_URL}"
+      includePaths:
+        - "${TARGET_URL}.*"
+  parameters:
+    failOnError: true
+    failOnWarning: false
+    progressToStdout: true
+
+jobs:
+  # Configure passive scanning behavior
+  - type: passiveScan-config
+    parameters:
+      maxAlertsPerRule: 10
+      scanOnlyInScope: true
+
+  # Suppress common false positives for CF applications.
+  # alertFilter MUST come before scanning jobs.
+  - type: alertFilter
+    parameters:
+      alertFilters:
+        # CF system endpoints often lack X-Content-Type-Options
+        - ruleId: 10021
+          newRisk: "False Positive"
+          urlRegex: ".*/(healthz|readyz|livez|__health).*"
+          enabled: true
+
+        # Server header version disclosure on CF router/Gorouter
+        - ruleId: 10036
+          newRisk: "False Positive"
+          urlRegex: ".*"
+          parameter: "Server"
+          enabled: true
+
+  # Spider the target to discover pages
+  - type: spider
+    parameters:
+      context: "full-scan-context"
+      maxDuration: 5
+      maxDepth: 10
+      maxChildren: 30
+
+  # Ajax spider for JavaScript-heavy applications.
+  # Uncomment the following block if your application renders content
+  # with JavaScript that the standard spider cannot discover.
+  # Requires a browser (Firefox/Chrome) available in the ZAP container.
+  #
+  # - type: spiderAjax
+  #   parameters:
+  #     context: "full-scan-context"
+  #     maxDuration: 3
+  #     maxCrawlDepth: 5
+  #     browserId: "firefox-headless"
+
+  # Wait for passive scan rules to finish processing
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 10
+
+  # Active scan with policy configuration
+  - type: activeScan
+    parameters:
+      context: "full-scan-context"
+      maxRuleDurationInMins: 5
+      maxScanDurationInMins: 30
+      policy: "Default Policy"
+      defaultPolicy:
+        strength: "medium"
+        threshold: "medium"
+      rules:
+        # XSS - test more aggressively
+        - id: 40012
+          strength: "high"
+          threshold: "low"
+        - id: 40014
+          strength: "high"
+          threshold: "low"
+        # SQL Injection - test more aggressively
+        - id: 40018
+          strength: "high"
+          threshold: "low"
+        - id: 40019
+          strength: "high"
+          threshold: "low"
+        - id: 40024
+          strength: "high"
+          threshold: "low"
+    tests:
+      - type: "alert"
+        action: "fail"
+        risk: "High"
+
+  # Generate HTML report
+  - type: report
+    parameters:
+      template: "traditional-html"
+      reportDir: "/zap/wrk/reports"
+      reportFile: "zap-full-report"
+      reportTitle: "ZAP Full Scan Report"
+      reportDescription: "Active and passive security scan results"
+
+  # Generate JSON report for programmatic consumption
+  - type: report
+    parameters:
+      template: "sarif-json"
+      reportDir: "/zap/wrk/reports"
+      reportFile: "zap-full-report"
+      reportTitle: "ZAP Full Scan Report (SARIF)"
+
+  # Exit with appropriate code based on alert threshold
+  - type: exitStatus
+    parameters:
+      errorLevel: "${FAIL_ON}"
